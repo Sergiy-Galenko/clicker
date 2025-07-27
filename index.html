@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="uk" data-theme="emerald">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Клікер — покупки fixed, рулетка (3‑фази), графік удачі</title>
+  <style>
+    :root{
+      --bg:#0b1220; --card:#111827; --txt:#e5e7eb; --muted:#9ca3af;
+      --acc:#22c55e; --danger:#ef4444; --border:#1f2937; --chip:#0b1220; --hdr:#0f172a;
+      --disabled:#0a0f1a; --disabled-bd:#152036;
+    }
+    [data-theme="emerald"]{ --acc:#22c55e; }
+    [data-theme="violet"] { --acc:#a78bfa; }
+    [data-theme="sunset"] { --acc:#f59e0b; }
+
+    *{box-sizing:border-box}
+    body{margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;
+      background:linear-gradient(160deg,#0b1220,#0f172a); color:var(--txt);
+      min-height:100vh; display:flex; flex-direction:column}
+    main{flex:1; display:flex; align-items:center; justify-content:center; padding:24px}
+
+    /* Header */
+    .header{position:sticky; top:0; z-index:50; background:var(--hdr); border-bottom:1px solid var(--border);
+      padding:12px 16px; display:flex; align-items:center; gap:14px; overflow:auto}
+    .brand{font-weight:800; font-size:18px; white-space:nowrap}
+    .tabs{display:flex; gap:8px; margin-left:8px}
+    .tab{padding:10px 14px; border-radius:12px; border:1px solid var(--border); background:#0b1220; color:#e5e7eb; cursor:pointer; white-space:nowrap}
+    .tab.active{background:var(--acc); color:#071b0f; border-color:#064e3b}
+    .spacer{flex:1; min-width:12px}
+    .chip{padding:8px 12px; border-radius:999px; background:var(--chip); border:1px solid var(--border); font-size:14px; white-space:nowrap}
+    .select{padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0b1220; color:#fff}
+
+    /* Layout */
+    .app{width:100%; max-width:1220px}
+    .view{display:none}
+    .view.active{display:block}
+    .grid2{display:grid; grid-template-columns: 1fr 420px; gap:20px}
+    @media (max-width:1150px){ .grid2{grid-template-columns:1fr} }
+    .card{background:var(--card); border:1px solid var(--border); border-radius:16px; padding:20px; box-shadow:0 8px 30px rgba(0,0,0,.35)}
+    .title{margin:0 0 8px; font-size:24px; font-weight:800}
+    .muted{color:var(--muted); font-size:14px}
+    .row{display:flex; gap:12px; flex-wrap:wrap; align-items:center}
+    .grid{display:grid; gap:12px}
+    .footer{margin-top:8px; font-size:12px; color:#94a3b8; text-align:center}
+
+    /* Counter & buttons */
+    .counter{display:flex; align-items:center; justify-content:center; height:220px; border-radius:16px;
+      background:radial-gradient(1200px 300px at 50% -100%, var(--acc)20%, transparent), #0b1220; border:1px solid var(--border)}
+    .value{font-size:56px; font-weight:800}
+    .big-btn{display:block; width:100%; margin-top:16px; padding:22px; font-size:20px; font-weight:800;
+      background:var(--acc); color:#071b0f; border:none; border-radius:14px; cursor:pointer}
+    .btn{flex:1; padding:12px 14px; border-radius:12px; border:1px solid var(--border); background:#0b1220; color:#e5e7eb; cursor:pointer; position:relative; overflow:hidden}
+    .btn:hover{filter:brightness(1.05)}
+    .btn.reset{background:var(--danger); border-color:#7f1d1d}
+    .btn[disabled]{cursor:not-allowed; background:var(--disabled); border-color:var(--disabled-bd); color:#6b7280}
+    .price{color:var(--muted); font-size:13px}
+    .kpi{display:flex; gap:14px; flex-wrap:wrap; margin-top:10px}
+    .pill{padding:6px 10px; border:1px solid var(--border); border-radius:999px; background:#0b1220; font-size:12px}
+
+    /* Progress bars (залишені лише для магазину) */
+    .progress{position:absolute; left:0; bottom:0; height:4px; background:var(--acc); width:0; transition:width .25s ease}
+    .left{position:absolute; right:10px; bottom:6px; font-size:11px; color:#9ca3af}
+
+    /* Roulette SVG */
+    .wheel-wrap{position:relative; display:flex; align-items:center; justify-content:center; margin:16px 0}
+    .wheel-svg{width:360px; height:360px; filter:drop-shadow(0 12px 30px rgba(0,0,0,.45))}
+    .wheel-rot{transform-origin:50% 50%; will-change:transform} /* без transition — анімація через JS */
+    .sector{stroke:#0f172a; stroke-width:2px}
+    .hub{fill:#0b1220; stroke:#1f2937; stroke-width:5px; filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))}
+    .hub-ring{fill:none; stroke:#22c55e; stroke-width:3px; opacity:.6}
+    .glow{filter:blur(18px); opacity:.35}
+    .sep{stroke:#0b1220; stroke-width:3.5px; opacity:.8}
+    .pointer3D{position:absolute; top:-4px; left:50%; transform:translateX(-50%); width:0; height:0;
+      border-left:12px solid transparent; border-right:12px solid transparent; border-bottom:18px solid #fff;
+      filter:drop-shadow(0 6px 12px rgba(0,0,0,.5))}
+    .spinbar{display:flex; gap:10px; align-items:center; justify-content:center}
+    .spin-btn{padding:12px 18px; border-radius:14px; border:1px solid #1f2937; background:linear-gradient(180deg,#1a2538,#101827);
+      color:#e5e7eb; cursor:pointer; font-weight:700; box-shadow:0 6px 20px rgba(0,0,0,.35)}
+    .spin-btn[disabled]{opacity:.6; cursor:not-allowed}
+    .prize-banner{margin-top:10px; text-align:center; font-weight:800}
+    .prize-banner .pill{display:inline-block; padding:6px 10px; border-radius:999px; border:1px solid #1f2937; background:#0b1220}
+    .sector.selected{animation:blink .9s ease-in-out 2}
+    @keyframes blink{ 0%,100%{filter:none} 50%{filter:brightness(1.25)} }
+
+    /* Lists */
+    .log{display:grid; gap:6px; max-height:200px; overflow:auto; font-size:14px}
+    .log-item{display:flex; gap:8px; align-items:center; padding:6px 8px; border:1px solid var(--border); border-radius:8px; background:#0b1220}
+    .log-ts{color:#9ca3af; font-size:12px; margin-left:auto}
+    .list{display:grid; gap:10px}
+    .card-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px; border:1px solid var(--border); border-radius:12px; background:#0b1220; position:relative; overflow:hidden}
+    .small{font-size:12px; color:#9ca3af}
+  </style>
+</head>
+<body>
+  <!-- HEADER -->
+  <header class="header">
+    <div class="brand">Клікер</div>
+    <nav class="tabs">
+      <button class="tab active" id="tabGame">Гра</button>
+      <button class="tab" id="tabRoulette">Рулетка</button>
+      <button class="tab" id="tabBuilds">Будівлі</button>
+      <button class="tab" id="tabResearch">Дослідження</button>
+      <button class="tab" id="tabArtifacts">Артефакти</button>
+      <button class="tab" id="tabSkins">Скіни</button>
+    </nav>
+    <div class="spacer"></div>
+    <div class="row">
+      <div class="chip" id="prestigeChip">⭐ x1.00 (0)</div>
+      <div class="chip" id="ticketChip" title="Квитки на спін">🎟️ 0</div>
+      <div class="chip" id="shardChip"  title="Шарди">🔹 0</div>
+      <select id="themeSel" class="select">
+        <option value="emerald">Emerald</option><option value="violet">Violet</option><option value="sunset">Sunset</option>
+      </select>
+      <div class="chip" id="streakChip">🔥 x1.00</div>
+      <div class="chip" id="seasonChip">Сезон: —</div>
+    </div>
+  </header>
+
+  <main>
+    <div class="app">
+
+      <!-- ===== GAME ===== -->
+      <section id="view-game" class="view active">
+        <div class="grid2">
+          <section class="card">
+            <h1 class="title">Гра</h1>
+            <p class="muted">Клікай, купуй апгрейди. Прогрес зберігається.</p>
+
+            <div class="counter" id="counter"><div class="value" id="score">0</div></div>
+            <button id="clickBtn" class="big-btn">Клік! +<span id="perClick">1</span></button>
+
+            <div class="kpi">
+              <div class="pill">За клік: <b id="kpiPerClick">1</b></div>
+              <div class="pill">APS: <b id="kpiAPS">0</b></div>
+              <div class="pill">Множник: <b id="kpiMult">x1.00</b></div>
+            </div>
+
+            <div class="footer">Хоткеї: G/L/B/T/A/K, Space, 1/2/3, S, R.</div>
+          </section>
+
+          <aside class="card">
+            <h2 class="title">Магазин</h2>
+            <div class="grid">
+              <button id="buyClick" class="btn">
+                <span>+1 до кліку</span><span class="price" id="clickCost">Ціна: 50</span>
+                <div class="progress" id="pgClick"></div><div class="left" id="leftClick"></div>
+              </button>
+              <button id="buyAuto" class="btn">
+                <span>+1 автоклік/сек</span><span class="price" id="autoCost">Ціна: 100</span>
+                <div class="progress" id="pgAuto"></div><div class="left" id="leftAuto"></div>
+              </button>
+              <button id="buyCrit" class="btn">
+                <span>Крит‑шанс +1%</span><span class="price" id="critCost">Ціна: 250</span>
+                <div class="progress" id="pgCrit"></div><div class="left" id="leftCrit"></div>
+              </button>
+              <button id="buyComboCap" class="btn">
+                <span>Комбо‑cap +0.5x</span><span class="price" id="comboCost">Ціна: 300</span>
+                <div class="progress" id="pgCombo"></div><div class="left" id="leftCombo"></div>
+              </button>
+              <div class="row">
+                <button id="saveBtn" class="btn">Зберегти</button>
+                <button id="resetBtn" class="btn reset">Скинути</button>
+              </div>
+            </div>
+
+            <h2 class="title" style="margin-top:18px">Prestige</h2>
+            <p class="muted" id="prestigeHint">Зароби більше, щоб відкрити престиж.</p>
+            <div class="row">
+              <button id="prestigeBtn" class="btn" disabled>Prestige</button>
+              <div class="pill" id="prestigePreview">+0 ⭐ (x1.00)</div>
+            </div>
+
+            <h2 class="title" style="margin-top:18px">Журнал подій</h2>
+            <div class="log" id="log"></div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ===== ROULETTE ===== -->
+      <section id="view-roulette" class="view">
+        <div class="grid2">
+          <section class="card">
+            <h1 class="title">Рулетка</h1>
+            <p class="muted">Щоденний спін, квитки, pity, ризик, івенти, історія. 3‑фазне обертання + «похитування».</p>
+
+            <div class="wheel-wrap">
+              <svg id="wheelSvg" class="wheel-svg" viewBox="-160 -160 320 320">
+                <defs>
+                  <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#34d399"/><stop offset="1" stop-color="#10b981"/></linearGradient>
+                  <linearGradient id="g2" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset="1" stop-color="#0ea5e9"/></linearGradient>
+                  <linearGradient id="g3" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#fbbf24"/><stop offset="1" stop-color="#f59e0b"/></linearGradient>
+                  <linearGradient id="g4" x1="1" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#f87171"/><stop offset="1" stop-color="#ef4444"/></linearGradient>
+                  <linearGradient id="g5" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#10b981"/><stop offset="1" stop-color="#059669"/></linearGradient>
+                  <linearGradient id="g6" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#c4b5fd"/><stop offset="1" stop-color="#a78bfa"/></linearGradient>
+                  <linearGradient id="g7" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f9a8d4"/><stop offset="1" stop-color="#f472b6"/></linearGradient>
+                  <linearGradient id="g8" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fde047"/><stop offset="1" stop-color="#eab308"/></linearGradient>
+                  <radialGradient id="glow" cx="0" cy="0" r="1"><stop offset="0" stop-color="#22c55e" stop-opacity=".6"/><stop offset="1" stop-color="#22c55e" stop-opacity="0"/></radialGradient>
+                </defs>
+                <circle class="glow" r="130" fill="url(#glow)"></circle>
+                <g id="wheel" class="wheel-rot"></g>
+                <circle class="hub" r="28"></circle>
+                <circle class="hub-ring" r="44"></circle>
+              </svg>
+              <div class="pointer3D"></div>
+            </div>
+
+            <div class="row">
+              <button id="spinBtn" class="spin-btn">Спін за <b id="spinCost">500</b> або 🎟️</button>
+              <button id="useTicketBtn" class="btn">Використати 🎟️</button>
+              <button id="dailyBtn" class="btn" title="Раз на добу">Щоденний 🎟️</button>
+              <div class="pill">CD: <b id="spinCd">0s</b></div>
+            </div>
+
+            <div class="row" style="margin-top:10px">
+              <label class="pill"><input type="checkbox" id="riskToggle"> Ризик‑режим (Double‑or‑Nothing)</label>
+              <div class="pill">Pity: <b id="pityInfo">0/15</b></div>
+              <div class="pill">Подія:
+                <select id="eventSel" class="select" style="padding:6px 8px">
+                  <option value="none">None</option>
+                  <option value="doubleShards">Double Shards</option>
+                  <option value="critFest">Crit Fest</option>
+                  <option value="jackpotBoost">Jackpot Boost</option>
+                  <option value="custom">Custom JSON</option>
+                </select>
+              </div>
+            </div>
+
+            <div id="customJsonWrap" class="row" style="display:none; margin-top:8px">
+              <textarea id="weightsJson" rows="3" style="width:100%; background:#0b1220; color:#e5e7eb; border:1px solid #1f2937; border-radius:8px; padding:8px"
+                placeholder='{"shard":16,"jack":6} // ключі: coins,pclk,aps,crit,buff,buff_click,buff_auto,freeze,combo,shard,jack'></textarea>
+              <button id="applyJson" class="btn">Застосувати JSON</button>
+            </div>
+
+            <div class="prize-banner" id="prizeBanner" hidden><span class="pill" id="prizeText">Виграш!</span></div>
+
+            <h3 class="title" style="margin-top:14px; font-size:18px">Шанси (з урахуванням події та pity)</h3>
+            <div id="chanceList" class="list"></div>
+          </section>
+
+          <aside class="card">
+            <h2 class="title">Історія випадінь</h2>
+            <div class="row">
+              <select id="histFilter" class="select" style="padding:6px 8px">
+                <option value="all">Всі</option>
+                <option value="common">Звичайні</option>
+                <option value="rare">Рідкісні</option>
+                <option value="epic">Епік</option>
+              </select>
+              <button id="histClear" class="btn">Очистити</button>
+            </div>
+            <div id="histBox" class="list" style="margin-top:10px; max-height:260px; overflow:auto"></div>
+
+            <h3 class="title" style="margin-top:14px; font-size:18px">Графік удачі</h3>
+            <canvas id="luckChart" width="360" height="80" style="width:100%; background:#0b1220; border:1px solid #1f2937; border-radius:8px"></canvas>
+
+            <h2 class="title" style="margin-top:18px">Баланс</h2>
+            <div class="kpi">
+              <div class="pill">Баланс: <b id="score_dup">0</b></div>
+              <div class="pill">PerClick: <b id="perClick_dup">1</b></div>
+              <div class="pill">APS: <b id="aps_dup">0</b></div>
+              <div class="pill">Крит: <b id="crit_dup">0%</b></div>
+              <div class="pill">Combo‑cap: <b id="combo_dup">x1.5</b></div>
+              <div class="pill">Множник: <b id="mult_dup">x1.00</b></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ===== BUILDS ===== -->
+      <section id="view-builds" class="view">
+        <div class="grid2">
+          <section class="card">
+            <h1 class="title">Будівлі</h1>
+            <p class="muted">Кнопка «Купити» просто активна/неактивна.</p>
+            <div class="list" id="buildList"></div>
+          </section>
+          <aside class="card">
+            <h2 class="title">Підсумок APS</h2>
+            <div class="kpi">
+              <div class="pill">Базовий APS: <b id="aps_base">0</b></div>
+              <div class="pill">Будівлі APS: <b id="aps_builds">0</b></div>
+              <div class="pill">Множник авто: <b id="aps_mult">x1.00</b></div>
+              <div class="pill">Разом APS: <b id="aps_total">0</b></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ===== RESEARCH ===== -->
+      <section id="view-research" class="view">
+        <div class="grid2">
+          <section class="card">
+            <h1 class="title">Дослідження</h1>
+            <p class="muted">Постійні покращення. Без смуг — лише актив/неактив.</p>
+            <div class="list" id="researchList"></div>
+          </section>
+          <aside class="card"><h2 class="title">Ефекти</h2><ul class="muted" id="researchEffects" style="line-height:1.6"></ul></aside>
+        </div>
+      </section>
+
+      <!-- ===== ARTIFACTS ===== -->
+      <section id="view-artifacts" class="view">
+        <div class="grid2">
+          <section class="card">
+            <h1 class="title">Артефакти</h1>
+            <div class="list" id="artifactList"></div>
+          </section>
+          <aside class="card">
+            <h2 class="title">Як отримати шарди?</h2>
+            <ul class="muted" style="line-height:1.6">
+              <li>🎉 Джекпот у рулетці: +3 🔹</li>
+              <li>Досягнення/події: іноді додають 🔹</li>
+            </ul>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ===== SKINS (без прогресів) ===== -->
+      <section id="view-skins" class="view">
+        <div class="grid2">
+          <section class="card">
+            <h1 class="title">Скіни</h1>
+            <p class="muted">Купуй за монети або умовно «за реальні кошти». Кнопки лише актив/неактив.</p>
+            <div class="list" id="skinList"></div>
+          </section>
+          <aside class="card">
+            <h2 class="title">Активний скін</h2>
+            <div class="kpi">
+              <div class="pill">ID: <b id="skinActiveId">—</b></div>
+              <div class="pill">Бонус кліку: <b id="skinClickBonus">x1.00</b></div>
+              <div class="pill">Бонус APS: <b id="skinAutoBonus">x1.00</b></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <script>
+    /* ============== CONFIG ============== */
+    const CONFIG = {
+      baseClickCost: 50, clickScale: 1.65,
+      baseAutoCost: 100, autoScale: 1.75,
+      baseCritCost: 250, critScale: 1.9,
+      baseComboCost: 300, comboScale: 1.85,
+
+      baseCritChance: 0.03, critAdd: 0.01, critMult: 5,
+      comboGainWindowMs: 1200, comboStep: 0.05, comboDecayPerSec: 0.10,
+      comboCapBase: 1.5, comboCapAdd: 0.5,
+
+      offlineCapHours: 8,
+
+      roulette: { baseCost: 500, scale: 1.20, cooldown: 10_000, pointerShift: 0, pityEveryN: 15 },
+
+      prestige: {
+        gain(totalEarned){ return Math.max(0, Math.floor(Math.sqrt(totalEarned / 50_000))); },
+        mult(points){ return 1 + points * 0.05; },
+        minEarned: 50_000
+      }
+    };
+
+    /* ===== Рулетка призи / події ===== */
+    let ROUL = [
+      {id:'coins', label:'💰 +1000',        type:'coins', value:1000,  weight:20, icon:'💰', rarity:'common'},
+      {id:'pclk',  label:'🧩 +3 perClick',  type:'pclk',  value:3,     weight:13, icon:'🧩', rarity:'common'},
+      {id:'aps',   label:'⚙️ +2 APS',       type:'aps',   value:2,     weight:11, icon:'⚙️', rarity:'common'},
+
+      {id:'buff',        label:'✨ Gold x5 / 10s',   type:'buff',        value:{mult:5, dur:10_000},  weight:10, icon:'✨', rarity:'rare'},
+      {id:'buff_click',  label:'⚡ HyperClick x10 / 5s', type:'buff_click', value:{mult:10, dur:5_000}, weight:8, icon:'⚡', rarity:'rare'},
+      {id:'buff_auto',   label:'🏎️ Turbo APS x3 / 15s', type:'buff_auto',  value:{mult:3, dur:15_000}, weight:8, icon:'🏎️', rarity:'rare'},
+      {id:'freeze',      label:'🧊 Freeze комбо / 10s', type:'freeze',     value:{dur:10_000},         weight:6, icon:'🧊', rarity:'rare'},
+
+      {id:'crit',  label:'🎯 +3% crit',     type:'crit',  value:0.03,  weight:10, icon:'🎯', rarity:'rare'},
+      {id:'combo', label:'♾ +0.5 combo',   type:'combo', value:0.5,   weight:10, icon:'♾', rarity:'rare'},
+      {id:'shard', label:'🔹 +1 shard',     type:'shard', value:1,     weight:9,  icon:'🔹', rarity:'rare'},
+      {id:'jack',  label:'🎉 Джекпот +5000',type:'jack',  value:5000,  weight:4,  icon:'🎉', rarity:'epic'}
+    ];
+
+    const EVENT_WEIGHTS = {
+      none:{},
+      doubleShards:{shard:2.0},
+      critFest:{crit:1.6,buff:1.2,buff_click:1.3},
+      jackpotBoost:{jack:1.4}
+    };
+
+    /* ===== Дані інших систем ===== */
+    const BUILDINGS = [
+      {id:'bot',icon:'🤖',name:'Клікер‑бот',base:500,scale:1.15,aps:0.5,desc:'+0.5 APS/рівень'},
+      {id:'farm',icon:'🌾',name:'Ферма',base:2000,scale:1.17,aps:2.0,desc:'+2 APS/рівень'},
+      {id:'factory',icon:'🏭',name:'Фабрика',base:15000,scale:1.20,aps:10.0,desc:'+10 APS/рівень'}
+    ];
+    const RESEARCH = [
+      {id:'click_mult',icon:'🧩',name:'Множник кліку',base:2000,scale:1.6,max:10,info:l=>`x${(1+0.1*l).toFixed(2)}`},
+      {id:'auto_mult', icon:'⚙️',name:'Множник авто', base:3000,scale:1.6,max:10,info:l=>`x${(1+0.1*l).toFixed(2)}`},
+      {id:'crit_chance',icon:'🎯',name:'+crit шанс',   base:2500,scale:1.55,max:10,info:l=>`+${(0.5*l).toFixed(1)}%`},
+      {id:'combo_decay',icon:'⏬',name:'Менший спад комбо', base:2200,scale:1.55,max:10,info:l=>`‑${l*5}%`},
+      {id:'offline_cap',icon:'⏱️',name:'Офлайн‑кап', base:1800,scale:1.5,max:8,info:l=>`+${l} год`}
+    ];
+    const ARTIFACTS = [
+      {id:'luckyCoin',icon:'🪙',name:'Монета удачі', shards:5, desc:'+5% до клікового множника'},
+      {id:'factoryHeart',icon:'💠',name:'Серце фабрики', shards:7, desc:'+10% до авто‑множника'},
+      {id:'timeStone',icon:'⏳',name:'Камінь часу', shards:6, desc:'‑20% спад комбо'},
+      {id:'sharpEye',icon:'👁️',name:'Пильне око', shards:8, desc:'+2% до крит‑шансу (кап 75%)'}
+    ];
+    const SKINS = [
+      {id:'neon',   name:'Neon Green',   coin:5000,  usd:0.99, clickMult:1.02, autoMult:1.00, note:'x1.02 до кліку'},
+      {id:'violet', name:'Violet Pulse', coin:7000,  usd:1.49, clickMult:1.00, autoMult:1.02, note:'x1.02 до APS'},
+      {id:'sunset', name:'Sunset Blaze', coin:12000, usd:1.99, clickMult:1.01, autoMult:1.01, note:'x1.01 до всього'},
+      {id:'spark',  name:'Particle Spark', coin:15000,usd:2.49, clickMult:1.02, autoMult:1.02, note:'x1.02 до всього'}
+    ];
+
+    /* ============== STATE ============== */
+    const state = {
+      score:0, perClick:1, autoPerSec:0,
+      clickCost:CONFIG.baseClickCost, autoCost:CONFIG.baseAutoCost,
+      critCost:CONFIG.baseCritCost, comboCost:CONFIG.baseComboCost,
+      critChance:CONFIG.baseCritChance, comboCap:CONFIG.comboCapBase,
+      comboMult:1, lastClickAt:0, totalClicks:0, totalEarned:0,
+      prestigePoints:0, shards:0, tickets:0,
+
+      // Daily
+      lastDailyClaim:'',
+
+      // Roulette
+      rouletteCost:CONFIG.roulette.baseCost, lastSpinAt:0, spinCount:0,
+      spinsSinceRare:0, riskMode:false, eventKey:'none', customWeights:{},
+      spinAngle:0, spinHistory:[],
+
+      // Meta
+      theme:(localStorage.getItem('theme')||'emerald'),
+      streak:1,lastLogin:null,dailyMult:1.0,season:'',seasonMult:1.0,
+      buffs:[], activeChal:null,
+
+      // Systems
+      buildings:{}, researchLevels:{}, artifacts:{},
+      skinsOwned:{}, activeSkin:null,
+
+      log:[], activeView: localStorage.getItem('activeView') || 'game'
+    };
+    const STORAGE_KEY='clicker_v15_buyfix_spin_chart';
+
+    /* ============== Utils / Save ============== */
+    const $ = id=>document.getElementById(id);
+    const fmt = new Intl.NumberFormat('uk-UA');
+    const now = ()=>Date.now();
+    function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    function load(){ try{ const raw=localStorage.getItem(STORAGE_KEY); if(raw) Object.assign(state, JSON.parse(raw)); }catch{} }
+    function log(icon,text){ state.log.unshift({ts:new Date().toLocaleTimeString(),icon,text}); if(state.log.length>150) state.log.pop(); renderLog(); }
+    function notify(text){ alert(text); }
+
+    /* ============== Multipliers / Economy helpers ============== */
+    function prestigeMult(){ return CONFIG.prestige.mult(state.prestigePoints); }
+    function skinClickMult(){ const s=SKINS.find(x=>x.id===state.activeSkin); return s? s.clickMult : 1; }
+    function skinAutoMult(){ const s=SKINS.find(x=>x.id===state.activeSkin); return s? s.autoMult : 1; }
+
+    function hasFreeze(){ return state.buffs.some(b=>b.kind==='freeze' && now()<b.until); }
+
+    function getGlobalBase(){ return prestigeMult()*state.comboMult*state.dailyMult*state.seasonMult; }
+    function getGlobalMultClick(){
+      let m = getGlobalBase()*skinClickMult();
+      for(const b of state.buffs){ if(now()<b.until && (b.kind==='all'||b.kind==='click')) m*= (b.mult||1); }
+      return m;
+    }
+    function getGlobalMultAuto(){
+      let m = getGlobalBase()*skinAutoMult();
+      for(const b of state.buffs){ if(now()<b.until && (b.kind==='all'||b.kind==='auto')) m*= (b.mult||1); }
+      return m;
+    }
+
+    function clickMultFromResearchArtifacts(){
+      let m=1+0.1*(state.researchLevels.click_mult||0);
+      if(state.artifacts.luckyCoin) m*=1.05;
+      return m;
+    }
+    function autoMultFromResearchArtifacts(){
+      let m=1+0.1*(state.researchLevels.auto_mult||0);
+      if(state.artifacts.factoryHeart) m*=1.10;
+      return m;
+    }
+    function currentCritChance(){ const add=0.005*(state.researchLevels.crit_chance||0)+(state.artifacts.sharpEye?0.02:0); return Math.min(0.75,state.critChance+add); }
+    function currentComboDecay(){
+      if(hasFreeze()) return 0; // заморозка комбо
+      const dec=CONFIG.comboDecayPerSec, r=1-0.05*(state.researchLevels.combo_decay||0), art=state.artifacts.timeStone?0.8:1;
+      return Math.max(0.01,dec*r*art);
+    }
+    function currentOfflineCapH(){ return CONFIG.offlineCapHours + (state.researchLevels.offline_cap||0); }
+    function buildingCost(b){ const n=state.buildings[b.id]||0; return Math.ceil(b.base*Math.pow(b.scale,n)); }
+    function apsFromBuildings(){ return BUILDINGS.reduce((s,b)=>s+(state.buildings[b.id]||0)*b.aps,0); }
+    function totalAPS(){ return (state.autoPerSec + apsFromBuildings())*autoMultFromResearchArtifacts()*getGlobalMultAuto(); }
+    function critify(base){ const isCrit=Math.random()<currentCritChance(); return {value:isCrit?base*CONFIG.critMult:base,isCrit}; }
+    function applyOfflineGain(){
+      const last=+localStorage.getItem('last_seen')||now();
+      const dt=Math.min((now()-last)/1000,currentOfflineCapH()*3600);
+      const aps=(state.autoPerSec + apsFromBuildings())*autoMultFromResearchArtifacts()*getGlobalMultAuto();
+      if(dt>1&&aps>0){ const gain=aps*dt; state.score+=gain; state.totalEarned+=gain; log('⏱️',`Офлайн +${fmt.format(Math.floor(gain))}`); }
+    }
+    function rememberSeen(){ localStorage.setItem('last_seen', now()); }
+
+    /* ============== Roulette SVG / weights / spin ============== */
+    const COLORS=['url(#g1)','url(#g2)','url(#g3)','url(#g4)','url(#g5)','url(#g6)','url(#g7)','url(#g8)'];
+    let wheelSectors=[];
+    function polar(r,aDeg){ const a=(aDeg-90)*Math.PI/180; return {x:r*Math.cos(a), y:r*Math.sin(a)};}
+    function arcPath(r,a0,a1){ const p0=polar(r,a0), p1=polar(r,a1); const large=(a1-a0)>180?1:0; return `M0 0 L ${p0.x.toFixed(3)} ${p0.y.toFixed(3)} A ${r} ${r} 0 ${large} 1 ${p1.x.toFixed(3)} ${p1.y.toFixed(3)} Z`; }
+    function buildRouletteSVG(){
+      const g=$('wheel'); g.innerHTML=''; wheelSectors=[];
+      const n=ROUL.length, seg=360/n;
+      for(let i=0;i<n;i++){
+        const a0=i*seg, a1=(i+1)*seg;
+        const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+        path.setAttribute('d', arcPath(140,a0,a1));
+        path.setAttribute('fill', COLORS[i%COLORS.length]);
+        path.setAttribute('class','sector');
+        g.appendChild(path); wheelSectors.push(path);
+        const sep=document.createElementNS('http://www.w3.org/2000/svg','line'); const p=polar(140,a1);
+        sep.setAttribute('x1','0'); sep.setAttribute('y1','0'); sep.setAttribute('x2',p.x.toFixed(3)); sep.setAttribute('y2',p.y.toFixed(3)); sep.setAttribute('class','sep'); g.appendChild(sep);
+        const txt=document.createElementNS('http://www.w3.org/2000/svg','text'); const mid=a0+seg/2; const pos=polar(95,mid);
+        txt.setAttribute('x',pos.x.toFixed(3)); txt.setAttribute('y',pos.y.toFixed(3));
+        txt.setAttribute('text-anchor','middle'); txt.setAttribute('dominant-baseline','middle');
+        txt.textContent = ROUL[i].icon || ''; g.appendChild(txt);
+      }
+      $('wheel').style.transform = `rotate(${state.spinAngle||0}deg)`;
+    }
+    function highlightSector(idx){
+      wheelSectors.forEach(s=>s.classList.remove('selected'));
+      if(wheelSectors[idx]) wheelSectors[idx].classList.add('selected');
+      const b=$('prizeBanner'), t=$('prizeText'); if(b&&t){ t.textContent=`Виграш: ${ROUL[idx].label}`; b.hidden=false; setTimeout(()=>b.hidden=true,2200); }
+    }
+    function currentWeights(){
+      const base=Object.fromEntries(ROUL.map(p=>[p.id,p.weight]));
+      const ek=state.eventKey;
+      const mult=ek==='custom' ? (state.customWeights||{}) : (EVENT_WEIGHTS[ek]||{});
+      for(const k in mult){ if(base[k]!=null){ base[k]*=mult[k]; } }
+      return base;
+    }
+    function pickIndexWithPity(){
+      const willPity=state.spinsSinceRare+1 >= CONFIG.roulette.pityEveryN;
+      const weights=currentWeights();
+      const pool=ROUL.map((p,i)=>({i,p,w:weights[p.id]||p.weight}))
+        .filter(x=>willPity? (x.p.rarity!=='common'):true);
+      const sum=pool.reduce((s,x)=>s+x.w,0);
+      let r=Math.random()*sum;
+      for(const x of pool){ r-=x.w; if(r<=0) return x.i; }
+      return pool[pool.length-1].i;
+    }
+    /* --- звук відсутній --- */
+    function startTicks(){} function stopTicks(){}
+
+    /* 3‑фазна анімація + settle wobble */
+    const easeInCubic  = t => t*t*t;
+    const easeOutQuint = t => 1 - Math.pow(1 - t, 5);
+    const easeLinear   = t => t;
+    function animateAngle(fromDeg, toDeg, durMs, easeFn, onFrame, onDone){
+      const g = $('wheel');
+      const start = performance.now();
+      function frame(ts){
+        const p = Math.min(1, (ts - start) / durMs);
+        const e = easeFn(p);
+        const ang = fromDeg + (toDeg - fromDeg) * e;
+        g.style.transform = `rotate(${ang}deg)`;
+        onFrame?.(ang);
+        if (p < 1) requestAnimationFrame(frame);
+        else { onDone?.(); }
+      }
+      requestAnimationFrame(frame);
+    }
+    function settleWobble(targetDeg, ampDeg=6, freq=10, durMs=600, onDone){
+      const g = $('wheel');
+      const t0 = performance.now();
+      function frame(ts){
+        const p = Math.min(1, (ts - t0) / durMs);
+        const decay = 1 - p;
+        const wobble = ampDeg * decay * Math.sin(p * Math.PI * 2 * (freq/10));
+        g.style.transform = `rotate(${targetDeg + wobble}deg)`;
+        if (p < 1) requestAnimationFrame(frame);
+        else { g.style.transform = `rotate(${targetDeg}deg)`; onDone?.(); }
+      }
+      requestAnimationFrame(frame);
+    }
+    function spinToWithPhases(targetDeg, onDone){
+      const startDeg = state.spinAngle || 0;
+      const total = targetDeg - startDeg;
+      const p1 = 0.22, p2 = 0.18, p3 = 0.60;
+      const a1 = startDeg + total * p1;
+      const a2 = startDeg + total * (p1 + p2);
+      const a3 = targetDeg;
+      const d1 = 400 + Math.random()*150;
+      const d2 = 350 + Math.random()*200;
+      const d3 = 1400 + Math.random()*400;
+      animateAngle(startDeg, a1, d1, easeInCubic,       ang=>state.spinAngle=ang, ()=>{
+        animateAngle(a1, a2, d2, easeLinear,           ang=>state.spinAngle=ang, ()=>{
+          animateAngle(a2, a3, d3, easeOutQuint,       ang=>state.spinAngle=ang, ()=>{
+            settleWobble(a3, 5 + Math.random()*2, 9 + Math.random()*2, 550 + Math.random()*150, ()=>{
+              state.spinAngle = a3; onDone?.();
+            });
+          });
+        });
+      });
+    }
+
+    function applyPrizeDelta(pr, sign=1){
+      switch(pr.type){
+        case 'coins': state.score += sign*pr.value; state.totalEarned += Math.max(0,sign*pr.value); break;
+        case 'pclk':  state.perClick += sign*pr.value; break;
+        case 'aps':   state.autoPerSec += sign*pr.value; break;
+        case 'crit':  state.critChance = Math.min(0.75, state.critChance + sign*pr.value); break;
+        case 'buff':        if(sign>0) state.buffs.push({kind:'all',   mult:pr.value.mult, until: now()+pr.value.dur}); break;
+        case 'buff_click':  if(sign>0) state.buffs.push({kind:'click', mult:pr.value.mult, until: now()+pr.value.dur}); break;
+        case 'buff_auto':   if(sign>0) state.buffs.push({kind:'auto',  mult:pr.value.mult, until: now()+pr.value.dur}); break;
+        case 'freeze':      if(sign>0) state.buffs.push({kind:'freeze', until: now()+pr.value.dur}); break;
+        case 'combo': state.comboCap += sign*pr.value; break;
+        case 'shard': state.shards += sign*pr.value; break;
+        case 'jack':  state.score += sign*pr.value; state.totalEarned += Math.max(0,sign*pr.value); if(sign>0) state.shards += 3; break;
+      }
+    }
+    function award(pr){
+      applyPrizeDelta(pr, +1);
+      state.spinCount++;
+      if(pr.rarity==='rare'||pr.rarity==='epic') state.spinsSinceRare=0; else state.spinsSinceRare++;
+      log(pr.icon||'🎁', `Рулетка: ${pr.label}`);
+      state.spinHistory.unshift({ts:new Date().toLocaleTimeString(), id:pr.id, label:pr.label, rarity:pr.rarity});
+      if(state.spinHistory.length>100) state.spinHistory.pop();
+      checkAchievements();
+    }
+    function spin(useTicket=false){
+      const ready = now()-state.lastSpinAt >= CONFIG.roulette.cooldown;
+      if(!ready) return notify('Почекати кулдаун.');
+      if(useTicket){
+        if(state.tickets<=0) return notify('Немає квитків.');
+      }else{
+        if(state.tickets>0) return spin(true);
+        if(state.score < state.rouletteCost) return;
+      }
+      if(useTicket) state.tickets--; else { state.score -= state.rouletteCost; }
+      state.lastSpinAt = now();
+      startTicks();
+
+      const n=ROUL.length, seg=360/n;
+      const idx = pickIndexWithPity();
+      const mid = idx*seg + seg/2;
+      const spins = 4 + Math.floor(Math.random()*3); // 4..6 обертів
+      const delta = spins*360 + (360 - mid) + CONFIG.roulette.pointerShift;
+      const target = state.spinAngle + delta;
+
+      spinToWithPhases(target, ()=>{
+        stopTicks();
+        const pr = ROUL[idx];
+        award(pr);
+        highlightSector(idx);
+        if(!useTicket) state.rouletteCost = Math.ceil(state.rouletteCost * CONFIG.roulette.scale);
+        updateUI(); save();
+      });
+    }
+
+    /* ============== Daily / Achievements ============== */
+    function todayKey(){ const d=new Date(); return d.toISOString().slice(0,10); }
+    function claimDaily(){ const key=todayKey(); if(state.lastDailyClaim===key) return notify('Сьогодні вже отримано.'); state.lastDailyClaim=key; state.tickets+=1; log('🎟️','Щоденний квиток отримано'); updateUI(); save(); }
+    const ACHV=[
+      {id:'first_click',icon:'👆',title:'Перший клік',cond:s=>s.totalClicks>=1,reward:s=>{s.perClick+=1;},rew:'+1 клік'},
+      {id:'spin_10',icon:'🎡',title:'10 спінів',cond:s=>s.spinCount>=10,reward:s=>{s.tickets+=1;},rew:'+1 🎟️'},
+      {id:'money_100k',icon:'💰',title:'100000 зароблено',cond:s=>s.totalEarned>=100000,reward:s=>{s.shards+=3;},rew:'+3 🔹'}
+    ];
+    function checkAchievements(){ state.unlocked??=[]; const have=new Set(state.unlocked); for(const a of ACHV){ if(!have.has(a.id)&&a.cond(state)){ state.unlocked.push(a.id); a.reward(state); log(a.icon,`Досягнення: ${a.title} — ${a.rew}`); } } }
+
+    /* ============== UI helpers ============== */
+    const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+    function pct(have,cost){ return clamp(have/cost,0,1)*100; }
+    function leftText(have,cost){ const left=Math.max(0, Math.ceil(cost - have)); return left>0 ? `залишилось ${fmt.format(left)}` : 'готово'; }
+
+    function renderLog(){ const box=$('log'); box.innerHTML=state.log.map(it=>`<div class="log-item"><div>${it.icon}</div><div>${it.text}</div><div class="log-ts">${it.ts}</div></div>`).join(''); }
+
+    // BUILDS (кнопка тільки актив/неактив)
+    function renderBuilds(){
+      const list = $('buildList'); list.innerHTML='';
+      for(const b of BUILDINGS){
+        const cnt = state.buildings[b.id]||0;
+        const cost = buildingCost(b);
+        const can = state.score >= cost;
+        const aps = (cnt*b.aps).toFixed(1);
+        const row = document.createElement('div');
+        row.className='card-row';
+        row.innerHTML = `
+          <div class="row" style="gap:10px">
+            <div style="font-size:20px">${b.icon}</div>
+            <div>
+              <div><b>${b.name}</b> <span class="small">(${b.desc})</span></div>
+              <div class="small">Рівень: <b>${cnt}</b> • Внесок APS: <b>${aps}</b></div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="pill">Ціна: <b>${fmt.format(cost)}</b></div>
+            <button class="btn" data-buy="${b.id}" ${can?'':'disabled'} style="min-width:120px">Купити</button>
+          </div>`;
+        list.appendChild(row);
+      }
+    }
+
+    // RESEARCH (без прогрес‑смуг)
+    function renderResearch(){
+      const list = $('researchList'), eff = $('researchEffects');
+      if(list) list.innerHTML='';
+      if(eff) eff.innerHTML='';
+      for(const r of RESEARCH){
+        const lvl = state.researchLevels[r.id]||0;
+        const cost = Math.ceil(r.base * Math.pow(r.scale, lvl));
+        const maxed = lvl>=r.max;
+        const can = !maxed && state.score >= cost;
+        const row = document.createElement('div');
+        row.className='card-row';
+        row.innerHTML = `
+          <div class="row" style="gap:10px">
+            <div style="font-size:20px">${r.icon}</div>
+            <div>
+              <div><b>${r.name}</b></div>
+              <div class="small">Рівень: <b>${lvl}/${r.max}</b> • Ефект: ${r.info(lvl)}</div>
+            </div>
+          </div>
+          <div class="row" style="min-width:220px">
+            <div class="pill">Ціна: <b>${fmt.format(cost)}</b></div>
+            <button class="btn" data-research="${r.id}" ${can?'':'disabled'} ${maxed?'disabled':''} style="min-width:120px">${maxed?'Max':'Прокачати'}</button>
+          </div>`;
+        list?.appendChild(row);
+        eff?.insertAdjacentHTML('beforeend', `<li>${r.icon} <b>${r.name}</b>: ${r.info(lvl)}</li>`);
+      }
+    }
+
+    function renderArtifacts(){
+      const list=$('artifactList'); list.innerHTML='';
+      for(const a of ARTIFACTS){
+        const owned=!!state.artifacts[a.id];
+        const row=document.createElement('div'); row.className='card-row';
+        row.innerHTML = `
+          <div class="row" style="gap:10px">
+            <div style="font-size:20px">${a.icon}</div>
+            <div>
+              <div><b>${a.name}</b></div>
+              <div class="small">${a.desc}</div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="pill">Вартість: <b>${a.shards} 🔹</b></div>
+            <button class="btn" data-art="${a.id}" ${owned?'disabled':''}>${owned?'Активовано':'Купити'}</button>
+          </div>`;
+        list.appendChild(row);
+      }
+    }
+
+    // SKINS (без прогресів, лише актив/неактив)
+    function renderSkins(){
+      const list=$('skinList'); list.innerHTML='';
+      for(const s of SKINS){
+        const owned = !!state.skinsOwned[s.id];
+        const active = state.activeSkin===s.id;
+        const canCoins = state.score >= s.coin;
+        const row=document.createElement('div'); row.className='card-row';
+        row.innerHTML = `
+          <div class="row" style="gap:10px">
+            <div style="width:20px;height:20px;border-radius:50%;background:var(--acc)"></div>
+            <div>
+              <div><b>${s.name}</b> <span class="small">(${s.note})</span></div>
+              <div class="small">Coins: <b>${fmt.format(s.coin)}</b> • IAP: <b>$${s.usd.toFixed(2)}</b></div>
+            </div>
+          </div>
+          <div class="row" style="min-width:260px">
+            ${
+              owned
+                ? `<button class="btn" data-skin-activate="${s.id}" ${active?'disabled':''}>${active?'Активний':'Активувати'}</button>`
+                : `<button class="btn" data-skin-buyc="${s.id}" ${canCoins?'':'disabled'}>Купити за монети</button>
+                   <button class="btn" data-skin-buym="${s.id}">Купити за $${s.usd.toFixed(2)}</button>`
+            }
+          </div>`;
+        list.appendChild(row);
+      }
+      const active = SKINS.find(x=>x.id===state.activeSkin);
+      $('skinActiveId').textContent = active? active.id : '—';
+      $('skinClickBonus').textContent = 'x'+ (active? active.clickMult:1).toFixed(2);
+      $('skinAutoBonus').textContent  = 'x'+ (active? active.autoMult:1).toFixed(2);
+    }
+
+    /* ============== KPI / Prices / Header ============== */
+    function updateHeaderChips(){
+      $('streakChip').textContent = `🔥 x${state.dailyMult.toFixed(2)} (${state.streak}д)`;
+      $('seasonChip').textContent = `Сезон: ${state.season} x${state.seasonMult.toFixed(2)}`;
+      $('prestigeChip').textContent = `⭐ x${CONFIG.prestige.mult(state.prestigePoints).toFixed(2)} (${state.prestigePoints})`;
+      $('shardChip').textContent = `🔹 ${state.shards}`;
+      $('ticketChip').textContent = `🎟️ ${state.tickets}`;
+    }
+    function updatePrices(){
+      $('clickCost').textContent='Ціна: '+fmt.format(state.clickCost);
+      $('autoCost').textContent='Ціна: '+fmt.format(state.autoCost);
+      $('critCost').textContent='Ціна: '+fmt.format(state.critCost);
+      $('comboCost').textContent='Ціна: '+fmt.format(state.comboCost);
+      $('spinCost').textContent=fmt.format(state.rouletteCost);
+      // прогрес для магазину (залишився)
+      const S=state.score;
+      const set = (pg,left,cost)=>{ const p=$(pg),l=$(left); if(p){ p.style.width=pct(S,cost)+'%'; } if(l){ l.textContent=leftText(S,cost);} };
+      set('pgClick','leftClick', state.clickCost);
+      set('pgAuto','leftAuto', state.autoCost);
+      set('pgCrit','leftCrit', state.critCost);
+      set('pgCombo','leftCombo', state.comboCost);
+      // доступність кнопок магазину
+      $('buyClick').disabled = !(S>=state.clickCost);
+      $('buyAuto').disabled  = !(S>=state.autoCost);
+      $('buyCrit').disabled  = !(S>=state.critCost);
+      $('buyComboCap').disabled = !(S>=state.comboCost);
+    }
+    function updateKPI(){
+      $('score').textContent=fmt.format(Math.floor(state.score));
+      $('perClick').textContent=fmt.format(state.perClick);
+      $('kpiPerClick').textContent=fmt.format(state.perClick);
+      $('kpiAPS').textContent=totalAPS().toFixed(2);
+      $('kpiMult').textContent='x'+(getGlobalBase()*skinClickMult()).toFixed(2);
+      $('score_dup').textContent=fmt.format(Math.floor(state.score));
+      $('perClick_dup').textContent=fmt.format(state.perClick);
+      $('aps_dup').textContent=totalAPS().toFixed(2);
+      $('crit_dup').textContent=(currentCritChance()*100).toFixed(1)+'%';
+      $('combo_dup').textContent='x'+state.comboCap.toFixed(1);
+      $('mult_dup').textContent='x'+(getGlobalBase()).toFixed(2);
+      const cd=Math.max(0, Math.ceil((state.lastSpinAt+CONFIG.roulette.cooldown - now())/1000)); $('spinCd').textContent=cd+'s';
+      $('spinBtn').disabled = !(cd===0 && (state.tickets>0 || state.score>=state.rouletteCost));
+      $('useTicketBtn').disabled = !(cd===0 && state.tickets>0);
+    }
+    function prestigePreview(){
+      const gain=CONFIG.prestige.gain(state.totalEarned), next=CONFIG.prestige.mult(state.prestigePoints+gain);
+      $('prestigePreview').textContent=`+${gain} ⭐ (x${next.toFixed(2)})`;
+      $('prestigeHint').textContent = gain>0 ? 'Готово до престижу.' : `Мінімум: ${fmt.format(CONFIG.prestige.minEarned)} загалом.`;
+      $('prestigeBtn').disabled = gain===0;
+    }
+    function updateUI(){
+      updateHeaderChips();
+      updatePrices();
+      updateKPI();
+      renderBuilds();
+      renderResearch();
+      renderArtifacts();
+      renderSkins();
+      chancePreview();
+      renderHistory();
+      renderLog();
+    }
+
+    /* ============== Gameplay actions ============== */
+    function doClick(){
+      const base = state.perClick * clickMultFromResearchArtifacts() * getGlobalMultClick();
+      const {value,isCrit}=critify(base);
+      state.score+=value; state.totalClicks++; state.totalEarned+=value;
+      if(isCrit){ const c=$('counter'); c.style.outline='2px solid var(--acc)'; setTimeout(()=>c.style.outline='none',120); }
+      checkAchievements(); updateUI();
+    }
+    function buyClick(){ if(state.score<state.clickCost) return; state.score-=state.clickCost; state.perClick+=1; state.clickCost=Math.ceil(state.clickCost*CONFIG.clickScale); log('🧩','Куплено: +1 до кліку'); updateUI(); save(); }
+    function buyAuto(){ if(state.score<state.autoCost) return; state.score-=state.autoCost; state.autoPerSec+=1; state.autoCost=Math.ceil(state.autoCost*CONFIG.autoScale); log('⚙️','Куплено: +1 APS'); updateUI(); save(); }
+    function buyCrit(){ if(state.score<state.critCost) return; state.score-=state.critCost; state.critChance=Math.min(0.75,state.critChance+CONFIG.critAdd); state.critCost=Math.ceil(state.critCost*CONFIG.critScale); log('🎯','Куплено: +crit'); updateUI(); save(); }
+    function buyCombo(){ if(state.score<state.comboCost) return; state.score-=state.comboCost; state.comboCap+=CONFIG.comboCapAdd; state.comboCost=Math.ceil(state.comboCost*CONFIG.comboScale); log('♾','Куплено: +combo-cap'); updateUI(); save(); }
+
+    /* ============== NEW: Надійне делегування для покупок ============== */
+    document.addEventListener('click',(e)=>{
+      const btn = e.target.closest('button');
+      if(!btn) return;
+      if(btn.disabled) return; // ігноруємо вимкнені кнопки
+
+      // ==== Будівлі ====
+      if(btn.dataset.buy){
+        const id = btn.dataset.buy;
+        const b = BUILDINGS.find(x=>x.id===id);
+        if(!b) return;
+        const cost = buildingCost(b);
+        if(state.score < cost) return;
+        state.score -= cost;
+        state.buildings[id] = (state.buildings[id]||0) + 1;
+        log(b.icon,`Куплено: ${b.name} (рівень ${state.buildings[id]})`);
+        updateUI(); save();
+        return;
+      }
+
+      // ==== Дослідження ====
+      if(btn.dataset.research){
+        const id = btn.dataset.research;
+        const r = RESEARCH.find(x=>x.id===id);
+        if(!r) return;
+        const lvl = state.researchLevels[id]||0;
+        if(lvl >= r.max) return;
+        const cost = Math.ceil(r.base * Math.pow(r.scale, lvl));
+        if(state.score < cost) return;
+        state.score -= cost;
+        state.researchLevels[id] = lvl + 1;
+        log(r.icon,`Досліджено: ${r.name} (${state.researchLevels[id]}/${r.max})`);
+        updateUI(); save();
+        return;
+      }
+
+      // ==== Артефакти ====
+      if(btn.dataset.art){
+        const id = btn.dataset.art;
+        const a = ARTIFACTS.find(x=>x.id===id);
+        if(!a || state.artifacts[id]) return;
+        if(state.shards < a.shards) return notify('Недостатньо шардів');
+        state.shards -= a.shards;
+        state.artifacts[id] = true;
+        log(a.icon,`Артефакт активовано: ${a.name}`);
+        updateUI(); save();
+        return;
+      }
+
+      // ==== Скіни ====
+      if(btn.dataset.skinBuyc){
+        const id = btn.dataset.skinBuyc;
+        const s = SKINS.find(x=>x.id===id);
+        if(!s || state.skinsOwned[id]) return;
+        if(state.score < s.coin) return;
+        state.score -= s.coin;
+        state.skinsOwned[id] = true;
+        log('🎨',`Скін куплено за монети: ${s.name}`);
+        updateUI(); save();
+        return;
+      }
+
+      if(btn.dataset.skinBuym){
+        const id = btn.dataset.skinBuym;
+        const s = SKINS.find(x=>x.id===id);
+        if(!s || state.skinsOwned[id]) return;
+        if(confirm(`Демо‑покупка скіна "${s.name}" за $${s.usd.toFixed(2)}. Підтвердити?`)){
+          state.skinsOwned[id] = true;
+          log('💳',`Скін куплено (демо): ${s.name}`);
+          updateUI(); save();
+        }
+        return;
+      }
+
+      if(btn.dataset.skinActivate){
+        const id = btn.dataset.skinActivate;
+        if(!state.skinsOwned[id]) return;
+        state.activeSkin = id;
+        const s = SKINS.find(x=>x.id===id);
+        log('✨',`Активовано скін: ${s?.name||id}`);
+        updateUI(); save();
+        return;
+      }
+    });
+
+    /* ============== Tabs / Buttons / Hotkeys ============== */
+    tabGame.onclick=()=>{ state.activeView='game'; localStorage.setItem('activeView','game'); showViews(); };
+    tabRoulette.onclick=()=>{ state.activeView='roulette'; localStorage.setItem('activeView','roulette'); showViews(); };
+    tabBuilds.onclick=()=>{ state.activeView='builds'; localStorage.setItem('activeView','builds'); showViews(); };
+    tabResearch.onclick=()=>{ state.activeView='research'; localStorage.setItem('activeView','research'); showViews(); };
+    tabArtifacts.onclick=()=>{ state.activeView='artifacts'; localStorage.setItem('activeView','artifacts'); showViews(); };
+    tabSkins.onclick=()=>{ state.activeView='skins'; localStorage.setItem('activeView','skins'); showViews(); };
+    function showViews(){
+      ['game','roulette','builds','research','artifacts','skins'].forEach(v=>{
+        document.getElementById('view-'+v).classList.toggle('active', state.activeView===v);
+        document.getElementById('tab'+v.charAt(0).toUpperCase()+v.slice(1)).classList.toggle('active', state.activeView===v);
+      });
+      updateUI();
+    }
+
+    $('clickBtn').onclick=doClick;
+    $('buyClick').onclick=buyClick; $('buyAuto').onclick=buyAuto; $('buyCrit').onclick=buyCrit; $('buyComboCap').onclick=buyCombo;
+    $('saveBtn').onclick=()=>{ save(); log('💾','Збережено'); };
+    $('resetBtn').onclick=()=>{ if(!confirm('Скинути прогрес?')) return;
+      const keep={prestigePoints:state.prestigePoints, shards:state.shards, tickets:state.tickets, skinsOwned:state.skinsOwned, activeSkin:state.activeSkin};
+      Object.assign(state,{score:0,perClick:1,autoPerSec:0,clickCost:CONFIG.baseClickCost,autoCost:CONFIG.baseAutoCost,critCost:CONFIG.baseCritCost,comboCost:CONFIG.baseComboCost,critChance:CONFIG.baseCritChance,comboCap:CONFIG.comboCapBase,comboMult:1,lastClickAt:0,totalClicks:0,totalEarned:0,buffs:[],rouletteCost:CONFIG.roulette.baseCost,lastSpinAt:0,spinsSinceRare:0,spinHistory:[]}, keep);
+      log('♻️','Ресет'); updateUI(); save();
+    };
+
+    $('spinBtn').onclick=()=>spin(false);
+    $('useTicketBtn').onclick=()=>spin(true);
+    $('dailyBtn').onclick=claimDaily;
+    $('riskToggle')?.addEventListener('change',e=>{ state.riskMode=e.target.checked; save(); });
+    $('eventSel')?.addEventListener('change',e=>{ state.eventKey=e.target.value; $('customJsonWrap').style.display=(state.eventKey==='custom'?'flex':'none'); buildRouletteSVG(); updateUI(); save(); });
+    $('applyJson')?.addEventListener('click',()=>{ try{ const obj=JSON.parse($('weightsJson').value||'{}'); state.customWeights=obj; buildRouletteSVG(); updateUI(); save(); }catch{ notify('Невірний JSON'); } });
+    $('histFilter')?.addEventListener('change', renderHistory);
+    $('histClear')?.addEventListener('click',()=>{ state.spinHistory=[]; renderHistory(); save(); });
+
+    // Hotkeys
+    window.addEventListener('keydown',(e)=>{
+      if(e.repeat) return;
+      if(e.key==='g'||e.key==='G') tabGame.click();
+      if(e.key==='l'||e.key==='L') tabRoulette.click();
+      if(e.key==='b'||e.key==='B') tabBuilds.click();
+      if(e.key==='t'||e.key==='T') tabResearch.click();
+      if(e.key==='a'||e.key==='A') tabArtifacts.click();
+      if(e.key==='k'||e.key==='K') tabSkins.click();
+      if(e.code==='Space' && state.activeView==='game'){ e.preventDefault(); doClick(); }
+      if(state.activeView==='game'){
+        if(e.key==='1') buyClick();
+        if(e.key==='2') buyAuto();
+        if(e.key==='3') buyCrit();
+      }
+      if(e.key==='s'||e.key==='S'){ save(); log('💾','Збережено'); }
+      if(e.key==='r'||e.key==='R'){ $('resetBtn').click(); }
+    });
+
+    /* ============== Chance preview & History chart ============== */
+    function chancePreview(){
+      const weights = currentWeights();
+      const total = ROUL.reduce((s,p)=>s+(weights[p.id]||p.weight),0);
+      const list=$('chanceList'); list.innerHTML='';
+      for(const p of ROUL){
+        const w = (weights[p.id]||p.weight);
+        const pct = (w/total*100).toFixed(1);
+        const r = p.rarity==='epic'?'🟣':(p.rarity==='rare'?'🟦':'⚪');
+        const row=document.createElement('div'); row.className='card-row';
+        row.innerHTML = `<div>${p.icon} <b>${p.label}</b> <span class="small">(${r} ${p.rarity})</span></div>
+                         <div class="small">Вага: ${w} • Шанс: <b>${pct}%</b></div>`;
+        list.appendChild(row);
+      }
+      $('pityInfo').textContent = `${state.spinsSinceRare}/${CONFIG.roulette.pityEveryN}`;
+    }
+
+    function renderHistory(){
+      const filterEl = $('histFilter');
+      const box = $('histBox');
+      if(!filterEl || !box) return;
+
+      const f = filterEl.value;
+      box.innerHTML='';
+      const data = state.spinHistory.filter(it => f==='all' ? true : it.rarity===f);
+      for(const it of data){
+        const row=document.createElement('div'); row.className='card-row';
+        row.innerHTML = `<div>${it.label}<span class="small"> • ${it.rarity}</span></div><div class="small">${it.ts}</div>`;
+        box.appendChild(row);
+      }
+      // останні 60 у хронологічному порядку (старі → нові)
+      drawLuckSpark(state.spinHistory.slice(0,60).reverse());
+    }
+
+    function drawLuckSpark(arr){
+      const c = $('luckChart'); if(!c) return;
+      const ctx = c.getContext('2d'); if(!ctx) return;
+
+      // 1) Правильний розмір під ретину/масштаб
+      const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+      const cssW = c.clientWidth || 360;
+      const cssH = c.clientHeight || 80;
+      if (c.width !== cssW * dpr || c.height !== cssH * dpr){
+        c.width = cssW * dpr; c.height = cssH * dpr;
+      }
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      ctx.clearRect(0,0,cssW,cssH);
+
+      // 2) Підготовка даних (0=common, 0.6=rare, 1=epic)
+      const valOf = r => r==='epic'?1 : r==='rare'?0.6 : 0;
+      const vals = arr.map(x=>valOf(x.rarity));
+      if(vals.length===0){
+        ctx.strokeStyle = '#1f2937'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0, cssH-1); ctx.lineTo(cssW, cssH-1); ctx.stroke();
+        return;
+      }
+
+      // 3) Сітка
+      ctx.strokeStyle = '#1f2937'; ctx.lineWidth = 1;
+      [0.25, 0.5, 0.75].forEach(p=>{
+        const y = cssH * (1 - p);
+        ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(cssW,y); ctx.stroke();
+      });
+
+      // 4) Згладження ковзним середнім
+      const win=5, sm=[];
+      for(let i=0;i<vals.length;i++){
+        const a=Math.max(0,i-win+1), b=i;
+        const m=vals.slice(a,b+1).reduce((s,v)=>s+v,0)/(b-a+1);
+        sm.push(m);
+      }
+
+      // 5) Лінія (epsilon — щоб лінія не «зникала» при нулях)
+      const epsilon = 0.02;
+      const yOf = v => cssH * (1 - Math.max(epsilon, v));
+
+      ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, yOf(sm[0]));
+      for(let i=1;i<sm.length;i++){
+        const x = i*(cssW/(sm.length-1));
+        ctx.lineTo(x, yOf(sm[i]));
+      }
+      ctx.stroke();
+
+      // 6) Маркери для rare/epic
+      for(let i=0;i<vals.length;i++){
+        if(vals[i] <= 0) continue; // common — пропускаємо
+        const x = i*(cssW/(vals.length-1));
+        const y = yOf(vals[i]);
+        ctx.beginPath();
+        ctx.arc(x, y, 2.5, 0, Math.PI*2);
+        ctx.fillStyle = vals[i]===1 ? '#a78bfa' : '#38bdf8'; // epic / rare
+        ctx.fill();
+      }
+    }
+
+    /* ============== INIT / Ticks ============== */
+    function initStreak(){ const today=new Date(); today.setHours(0,0,0,0); const last=state.lastLogin?new Date(state.lastLogin):null; if(!last){ state.lastLogin=today.toISOString(); state.streak=1; }else{ last.setHours(0,0,0,0); const diff=Math.round((today-last)/86400000); if(diff===1) state.streak=Math.min(7,(state.streak||1)+1); else if(diff>1) state.streak=1; state.lastLogin=today.toISOString(); } state.dailyMult=1+(state.streak-1)*0.1; }
+    function initSeason(){
+      const m = new Date().getMonth();
+      const data=[{name:'Зима',mult:1.05,theme:'violet'},{name:'Весна',mult:1.05,theme:'emerald'},{name:'Літо',mult:1.08,theme:'sunset'},{name:'Осінь',mult:1.03,theme:'violet'}];
+      const s=(m<=1||m===11)?data[0]:(m<=4?data[1]:(m<=7?data[2]:data[3]));
+      state.season=s.name; state.seasonMult=s.mult;
+    }
+
+    function updateComboTick(){ if(state.comboMult>1){ const dt=0.1; state.comboMult=Math.max(1, state.comboMult - currentComboDecay()*dt); } }
+
+    load(); initStreak(); initSeason(); applyOfflineGain();
+    document.documentElement.setAttribute('data-theme', state.theme); $('themeSel').value=state.theme;
+    $('themeSel').onchange=(e)=>{ state.theme=e.target.value; document.documentElement.setAttribute('data-theme', state.theme); save(); };
+
+    buildRouletteSVG();
+    showViews();
+    updateUI();
+
+    setInterval(()=>{
+      updateComboTick();
+      const aps=(state.autoPerSec + apsFromBuildings())*autoMultFromResearchArtifacts()*getGlobalMultAuto();
+      if(aps>0){ const delta=aps/10; state.score+=delta; state.totalEarned+=delta; }
+      updateUI();
+    },100);
+    setInterval(()=>save(),5000);
+    window.addEventListener('beforeunload', rememberSeen);
+  </script>
+</body>
+</html>
